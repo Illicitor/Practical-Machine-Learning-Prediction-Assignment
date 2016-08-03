@@ -57,7 +57,7 @@ table(sapply(pml.train, class))
 # character   integer   numeric 
 # 1        25        27 
 ```
-###looks good!
+####looks good!
 
 ###Splitting pml.train data into training and testing sets
 ```{r}
@@ -76,7 +76,7 @@ training$classe<-as.factor(training$classe)
 testing$classe<-as.factor(testing$classe)
 ```
 
-####
+
 ##Data preparation and modeling steps
 ####
 ####Using 'nzv' method to remove the variables with near zero variation
@@ -96,6 +96,7 @@ ncol(transformed)
 # [1] 40
 ```
 #####Removing corrlations has cut short the number of variables from 53 to 40. Whoa!
+
 
 ##GBM model fitting by 10 fold cross validation
 ```{r}
