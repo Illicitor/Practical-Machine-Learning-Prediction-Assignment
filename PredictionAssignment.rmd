@@ -1,10 +1,10 @@
-##########
+
 #Coursera - Practical Machine Learning
-#Course Project 
+#Course Project - Prediction Assignment
 ```{r}
 library(ggplot2); library(caret)
 ```
-#Loading training data
+##Loading training data
 ```{r}
 pml.train<-read.csv("C:/Work/Learning/Coursera/Practical Machine Learning/Course Project/pml-training.csv",
                             as.is=T,na.strings=c("#DIV/0!","NA",""))
@@ -20,29 +20,29 @@ dim(pml.test)
 # [1]  20 160
 ```
 
-####Understanding of the Data#### 
-#Data: roll, pitch & yaw values and accelerometers (accel, gyro and magnet) readings on the belt, forearm, arm, and dumbell 
-#of 6 participants are present in the training data with timestamp, windows and aggregates/summary variables of accelrometers readings
-#And the 'classe' variable to represent barbell lift activities (A to E) is provided for all records
-####
+##Understanding of the Data
+####Data: roll, pitch & yaw values and accelerometers (accel, gyro and magnet) readings on the belt,forearm, arm, and dumbell 
+####of 6 participants are present in the training data with timestamp, windows and aggregates/summary variables of accelrometers readings
+####And the 'classe' variable to represent barbell lift activities (A to E) is provided for all records
 
-###Data PreProcessing###
-#The test set contains 20 individual cases with accelerometers readings data and no aggregated informaion
-#the model build from training set need to predict the barbell lifting activity based on accelerometers data
+
+##Data PreProcessing
+####The test set contains 20 individual cases with accelerometers readings data and no aggregated ####informaion
+####The model build from training set needs to predict the barbell lifting activity based on ####accelerometers data only
 ```{r}
 table(sapply(pml.test,FUN=function(x) sum(is.na(x))))
 # 0  20 
 # 60 100 
 ```
 
-#In the data, summary variables are 100 and all values for these variables in test data are NAs 
-#Hence we should consider only accelerometers readings with roll, pitch & raw variables in training set
+####In the data, summary variables are 100 and all values for these variables in test data are NAs 
+####Hence we should consider only accelerometers readings with roll, pitch & raw variables in training set
 ```{r}
 vars<-colnames(pml.train[colSums(is.na(pml.test)) == 0])
 pml.train<-pml.train[vars]
 ```
 
-#Removing the unwanted variables for modeling like timestamp, window etc.
+###Removing the unwanted variables for modeling like timestamp, window etc.
 ```{r}
 names(pml.train)[1:10]
 # [1] "roll_belt"        "pitch_belt"       "yaw_belt"         "total_accel_belt"
@@ -51,15 +51,15 @@ names(pml.train)[1:10]
 pml.train<-pml.train[,-(1:7)]
 ```
 
-#Checking data types of all variables in the data set
+###Checking data types of all variables in the data set
 ```{r}
 table(sapply(pml.train, class))
 # character   integer   numeric 
 # 1        25        27 
 ```
-#looks good!
+###looks good!
 
-#Splitting pml.train data into training and testing sets
+###Splitting pml.train data into training and testing sets
 ```{r}
 set.seed(174)
 inTrain<-createDataPartition(pml.train$classe,p=0.6,list = F)
@@ -70,34 +70,34 @@ dim(training);dim(testing)
 # [1] 7846   53
 ```
 
-#Converting the outcome variable 'classe' into factor
+###Converting the outcome variable 'classe' into factor
 ```{r}
 training$classe<-as.factor(training$classe)
 testing$classe<-as.factor(testing$classe)
 ```
 
 ####
-#Data preparation and modeling steps
+##Data preparation and modeling steps
 ####
-#Using 'nzv' method to remove the variables with near zero variation
+####Using 'nzv' method to remove the variables with near zero variation
 ```{r}
 preprocess1 <- preProcess(subset(training,select=-classe),method=c("nzv"))
 transformed<-predict(preprocess1,training)
 dim(transformed)
 # [1] 11776    53
 ```
-#Not a single variable is removed!
+####Not a single variable is removed!
 
-#Finding correlations among the varaibles to remove highly correlated varaibles
+####Finding correlations among the varaibles to remove highly correlated varaibles
 ```{r}
 highCorr<-findCorrelation(cor(transformed[,-53]),0.8)
 transformed<-transformed[,-highCorr]
 ncol(transformed)
 # [1] 40
 ```
-#Removing corrlations has cut short the number of variables from 53 to 40. Whoa!
+#####Removing corrlations has cut short the number of variables from 53 to 40. Whoa!
 
-#GBM model fitting by 10 fold cross validation
+##GBM model fitting by 10 fold cross validation
 ```{r}
 system.time(fitGBM<-train(classe~.,data=transformed,method="gbm",
                           trControl=trainControl(method="cv",number=10)))
@@ -141,7 +141,7 @@ fitGBM
 plot(fitGBM)
 ```
 
-#GBM Model testing
+##GBM Model testing
 ```{r}
 pred.GBM<-predict(fitGBM,testing)
 confusionMatrix(pred.GBM,testing$classe)
@@ -176,7 +176,5 @@ confusionMatrix(pred.GBM,testing$classe)
 # Detection Rate         0.2808   0.1788   0.1629   0.1535   0.1769
 # Detection Prevalence   0.2893   0.1930   0.1789   0.1597   0.1791
 # Balanced Accuracy      0.9875   0.9534   0.9574   0.9644   0.9799
-
-
 ```
 
