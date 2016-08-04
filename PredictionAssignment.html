@@ -1,0 +1,184 @@
+---
+output: html_document
+---
+
+#Coursera - Practical Machine Learning
+#Course Project - Prediction Assignment
+```{r}
+library(ggplot2); library(caret)
+```
+##Loading training data
+```{r}
+pml.train<-read.csv("C:/Work/Learning/Coursera/Practical Machine Learning/Course Project/pml-training.csv",
+                            as.is=T,na.strings=c("#DIV/0!","NA",""))
+
+pml.test<-read.csv("C:/Work/Learning/Coursera/Practical Machine Learning/Course Project/pml-testing.csv",
+                      as.is=T,na.strings=c("#DIV/0!","NA",""))
+
+```
+```{r}
+dim(pml.train)
+# [1] 19622   160
+dim(pml.test)
+# [1]  20 160
+```
+
+##Understanding of the Data
+####Data: roll, pitch & yaw values and accelerometers (accel, gyro and magnet) readings on the belt,forearm, arm, and dumbell 
+####of 6 participants are present in the training data with timestamp, windows and aggregates/summary variables of accelrometers readings
+####And the 'classe' variable to represent barbell lift activities (A to E) is provided for all records
+
+
+##Data PreProcessing
+####The test set contains 20 individual cases with accelerometers readings data and no aggregated ####informaion
+####The model build from training set needs to predict the barbell lifting activity based on ####accelerometers data only
+```{r}
+table(sapply(pml.test,FUN=function(x) sum(is.na(x))))
+# 0  20 
+# 60 100 
+```
+
+####In the data, summary variables are 100 and all values for these variables in test data are NAs 
+####Hence we should consider only accelerometers readings with roll, pitch & raw variables in training set
+```{r}
+vars<-colnames(pml.train[colSums(is.na(pml.test)) == 0])
+pml.train<-pml.train[vars]
+```
+
+###Removing the unwanted variables for modeling like timestamp, window etc.
+```{r}
+names(pml.train)[1:10]
+# [1] "roll_belt"        "pitch_belt"       "yaw_belt"         "total_accel_belt"
+# [5] "gyros_belt_x"     "gyros_belt_y"     "gyros_belt_z"     "accel_belt_x"    
+# [9] "accel_belt_y"     "accel_belt_z"   
+pml.train<-pml.train[,-(1:7)]
+```
+
+###Checking data types of all variables in the data set
+```{r}
+table(sapply(pml.train, class))
+# character   integer   numeric 
+# 1        25        27 
+```
+####looks good!
+
+###Splitting pml.train data into training and testing sets
+```{r}
+set.seed(174)
+inTrain<-createDataPartition(pml.train$classe,p=0.6,list = F)
+training<-pml.train[inTrain,]
+testing<-pml.train[-inTrain,]
+dim(training);dim(testing)
+# [1] 11776    53
+# [1] 7846   53
+```
+
+###Converting the outcome variable 'classe' into factor
+```{r}
+training$classe<-as.factor(training$classe)
+testing$classe<-as.factor(testing$classe)
+```
+
+
+##Data preparation and modeling steps
+####
+####Using 'nzv' method to remove the variables with near zero variation
+```{r}
+preprocess1 <- preProcess(subset(training,select=-classe),method=c("nzv"))
+transformed<-predict(preprocess1,training)
+dim(transformed)
+# [1] 11776    53
+```
+####Not a single variable is removed!
+
+####Finding correlations among the varaibles to remove highly correlated varaibles
+```{r}
+highCorr<-findCorrelation(cor(transformed[,-53]),0.8)
+transformed<-transformed[,-highCorr]
+ncol(transformed)
+# [1] 40
+```
+#####Removing corrlations has cut short the number of variables from 53 to 40. Whoa!
+
+
+##GBM model fitting by 10 fold cross validation
+```{r}
+system.time(fitGBM<-train(classe~.,data=transformed,method="gbm",
+                          trControl=trainControl(method="cv",number=10)))
+# user  system elapsed 
+# 363.64    0.67  366.04  
+```
+
+```{r}
+fitGBM
+# Stochastic Gradient Boosting 
+# 
+# 11776 samples
+#    39 predictor
+#     5 classes: 'A', 'B', 'C', 'D', 'E' 
+# 
+# No pre-processing
+# Resampling: Cross-Validated (10 fold) 
+# Summary of sample sizes: 10599, 10598, 10598, 10597, 10597, 10600, ... 
+# Resampling results across tuning parameters:
+# 
+#   interaction.depth  n.trees  Accuracy   Kappa    
+#   1                   50      0.7236750  0.6495039
+#   1                  100      0.7933088  0.7383908
+#   1                  150      0.8310102  0.7860734
+#   2                   50      0.8340708  0.7897617
+#   2                  100      0.8925787  0.8640523
+#   2                  150      0.9181380  0.8964099
+#   3                   50      0.8775488  0.8449573
+#   3                  100      0.9258627  0.9061711
+#   3                  150      0.9475177  0.9335972
+# 
+# Tuning parameter 'shrinkage' was held constant at a value of 0.1
+# Tuning
+#  parameter 'n.minobsinnode' was held constant at a value of 10
+# Accuracy was used to select the optimal model using  the largest value.
+# The final values used for the model were n.trees = 150, interaction.depth =
+#  3, shrinkage = 0.1 and n.minobsinnode = 10. 
+```
+
+```{r}
+plot(fitGBM)
+```
+
+##GBM Model testing
+```{r}
+pred.GBM<-predict(fitGBM,testing)
+confusionMatrix(pred.GBM,testing$classe)
+# Confusion Matrix and Statistics
+# 
+#           Reference
+# Prediction    A    B    C    D    E
+#          A 2203   53    0    8    6
+#          B   18 1403   69    7   17
+#          C    9   47 1278   55   15
+#          D    2   12   19 1204   16
+#          E    0    3    2   12 1388
+# 
+# Overall Statistics
+#                                           
+#                Accuracy : 0.9528          
+#                  95% CI : (0.9479, 0.9574)
+#     No Information Rate : 0.2845          
+#     P-Value [Acc > NIR] : < 2.2e-16       
+#                                           
+#                   Kappa : 0.9403          
+#  Mcnemar's Test P-Value : 7.307e-13       
+# 
+# Statistics by Class:
+# 
+#                      Class: A Class: B Class: C Class: D Class: E
+# Sensitivity            0.9870   0.9242   0.9342   0.9362   0.9626
+# Specificity            0.9881   0.9825   0.9805   0.9925   0.9973
+# Pos Pred Value         0.9705   0.9267   0.9103   0.9609   0.9879
+# Neg Pred Value         0.9948   0.9818   0.9860   0.9876   0.9916
+# Prevalence             0.2845   0.1935   0.1744   0.1639   0.1838
+# Detection Rate         0.2808   0.1788   0.1629   0.1535   0.1769
+# Detection Prevalence   0.2893   0.1930   0.1789   0.1597   0.1791
+# Balanced Accuracy      0.9875   0.9534   0.9574   0.9644   0.9799
+```
+
